@@ -133,6 +133,10 @@ parse_biota_td <- function(biota) {
         }) %>%
         do.call(what = rbind)
 
+    if (is.null(mat)) {
+        return()
+    }
+
     if (1 < nrow(mat)) {
         for (i in 2:nrow(mat)) {
             abb <- gsub("\\b([A-z])\\w+?\\b", "\\1\\\\.", mat[i - 1, 2])
@@ -145,16 +149,23 @@ parse_biota_td <- function(biota) {
 
 parse <- function(html) {
     biota <- parse_biota(html)
+
     if (is.na(biota)) {
         return()
     }
 
-    list(
+    lst <- list(
         h1 = parse_h1(html),
         th = parse_biota_th(biota),
         img = parse_biota_img(biota),
         td = parse_biota_td(biota)
     )
+
+    if (any(sapply(lst, is.null))) {
+        return()
+    }
+
+    lst
 }
 
 scrape_and_parse <- function(terms, dname, crawl = 1) {
@@ -356,7 +367,7 @@ ui <- fluidPage(
             tabPanel("Config", br(),
                 checkboxInput("simplify", "Simplify?", TRUE),
                 checkboxInput("rooted", "Rooted tree?", TRUE),
-                sliderInput("crawl", "Recursive Search", 1, 5, 2),
+                sliderInput("crawl", "Recursive Search", 1, 5, 1),
                 selectInput("layout", "Layout", OPTIONS_LAYOUT),
                 selectInput("overlap", "Overlap", OPTIONS_OVERLAP),
                 selectInput("rankdir", "Rankdir", OPTIONS_RANKDIR)
@@ -384,7 +395,7 @@ server <- function(input, output) {
         }
 
         terms <- trimws(unlist(strsplit(input$text_in, "\n")))
-        terms <- terms[terms != ""]
+        terms <- unique(tolower(terms[terms != ""]))
 
         DiagrammeR::grViz(form_graph(
             terms, dname,
