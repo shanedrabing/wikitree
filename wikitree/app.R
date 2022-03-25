@@ -23,6 +23,8 @@ node [shape=record style=filled fillcolor=white color=none fillcolor=skyblue]
 %s
 }\n")
 
+DEFAULT_INPUT <- "fly\nspider\nbird\ncat\ndog\ngoat\ncow\nhorse"
+
 OPTIONS_LAYOUT <- c("dot", "neato", "twopi", "fdp")
 OPTIONS_OVERLAP <- c("true", "false", "scale", "scalex", "scaley", "scalexy", "ortho")
 OPTIONS_RANKDIR <- c("LR", "BT", "RL", "TB")
@@ -102,7 +104,7 @@ parse_biota_th <- function(biota) {
     biota %>%
         html_node("th") %>%
         html_text2() %>%
-        gsub("\\n.+$", "", .)
+        gsub("(?:\\n|\\[).+$", "", .)
 }
 
 parse_biota_img <- function(biota) {
@@ -231,7 +233,7 @@ form_nodes <- function(snp) {
     nodes <- c(
         do.call(c, lapply(snp, function(lst) {
             sprintf(
-                '"%s" [label=< <b>%s </b><br/><i>%s</i> > fillcolor=dodgerblue]',
+                '"%s" [label=< <b>%s</b><br/><i>%s</i> > fillcolor=dodgerblue]',
                 tail(lst$td, 1), lst$th, gsub("^.+, ", "", tail(lst$td, 1))
             )
         })),
@@ -349,7 +351,7 @@ ui <- fluidPage(
     sidebarLayout(
         sidebarPanel(h4("Wikipedia Trees", style = "text-align:center"), br(), tabsetPanel(type = "tabs",
             tabPanel("Input",
-                textAreaInput("text_in", NULL, "horse\nsheep\ngoat\ncow", "100%", "70vh", resize = "both")
+                textAreaInput("text_in", NULL, DEFAULT_INPUT, "100%", "70vh", resize = "both")
             ),
             tabPanel("Config", br(),
                 checkboxInput("simplify", "Simplify?", TRUE),
