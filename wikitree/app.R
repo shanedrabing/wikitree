@@ -356,7 +356,7 @@ ui <- fluidPage(
             tabPanel("Config", br(),
                 checkboxInput("simplify", "Simplify?", TRUE),
                 checkboxInput("rooted", "Rooted tree?", TRUE),
-                sliderInput("crawl", "Recursive Search", 1, 5, 1),
+                sliderInput("crawl", "Recursive Search", 1, 5, 2),
                 selectInput("layout", "Layout", OPTIONS_LAYOUT),
                 selectInput("overlap", "Overlap", OPTIONS_OVERLAP),
                 selectInput("rankdir", "Rankdir", OPTIONS_RANKDIR)
