@@ -231,7 +231,8 @@ div.parent:hover img {
     max-width: 40vw;
     max-height: 30vh;
     visibility: visible;
-}\n")
+}
+")
 
 DEFAULT_INPUT <- "fly\nspider\nbird\ncat\ndog\ngoat\ncow\nhorse"
 
@@ -465,7 +466,6 @@ simplify_network <- function(snp, terms) {
     })
 
     index <- !duplicated(lapply(snp_sim, "[[", "td"))
-
     snp_sim[index]
 }
 
