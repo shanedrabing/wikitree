@@ -2,7 +2,7 @@
 
 <div align="center">
     <a href="https://shanedrabing.shinyapps.io/wikitree/">
-        <img src="data/splash.png" height="60%" />
+        <img src="data/splash.png" height="360px" />
     </a>
 </div>
 
