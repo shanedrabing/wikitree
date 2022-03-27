@@ -10,14 +10,20 @@ library(shiny)
 
 
 RMGET_LIST <- NULL
+LINKS_LIST <- NULL
 PARSE_LIST <- NULL
 
+DEFAULT_INPUT <- "fly\nspider\nbird\ncat\ndog\ngoat\ncow\nhorse"
 PATTERN_TAXON <- "^Domain|Kingdom|Phylum|Class|Order|Family|Genus|Species"
+OPTIONS_LAYOUT <- c("dot", "neato", "twopi", "fdp")
+OPTIONS_SPLINES <- c("true", "false", "ortho", "polyline", "curved")
+OPTIONS_OVERLAP <- c("true", "false", "scale", "ortho")
+OPTIONS_RANKDIR <- c("LR", "BT", "RL", "TB")
 
 FORMAT_GRAPH <- gsub("^\\s+", "", "
 strict digraph {
 layout=%s\nsplines=%s\noverlap=%s\nrankdir=%s
-pad=0
+pad=0\ntooltip=\" \"
 node [shape=record style=filled fillcolor=white color=none fillcolor=skyblue]
 %s
 %s
@@ -228,18 +234,11 @@ img {
 div.parent:hover img {
     transition: all 0.5s;
     transition-delay: 15ms;
-    max-width: 40vw;
-    max-height: 30vh;
+    max-width: 50vw;
+    max-height: 40vh;
     visibility: visible;
 }
 ")
-
-DEFAULT_INPUT <- "fly\nspider\nbird\ncat\ndog\ngoat\ncow\nhorse"
-
-OPTIONS_LAYOUT <- c("dot", "neato", "twopi", "fdp")
-OPTIONS_SPLINES <- c("true", "false", "ortho", "polyline", "curved")
-OPTIONS_OVERLAP <- c("true", "false", "scale", "ortho")
-OPTIONS_RANKDIR <- c("LR", "BT", "RL", "TB")
 
 
 # FUNCTIONS
@@ -324,6 +323,13 @@ parse_h1 <- function(html) {
         html_text2()
 }
 
+parse_links <- function(html) {
+    html %>%
+        html_nodes("div#content p a[href^='/wiki/']") %>%
+        html_attr("href") %>%
+        sprintf("https://en.wikipedia.org%s", .)
+}
+
 parse_biota <- function(html) {
     html %>%
         html_node("table.biota")
@@ -338,8 +344,9 @@ parse_biota_th <- function(biota) {
 
 parse_biota_img <- function(biota) {
     biota %>%
-        html_node("img") %>%
-        html_attr("src") %>%
+        html_node("img[srcset]") %>%
+        html_attr("srcset") %>%
+        gsub("^(?:.*, |)(.+) .+$", "\\1", .) %>%
         gsub("^//", "https://", .) %>%
         gsub("^/", "https://en.wikipedia.org/", .)
 }
@@ -398,7 +405,34 @@ parse <- function(html) {
     lst
 }
 
-scrape_and_parse <- function(terms, dname, crawl = 1) {
+scrape_and_parse <- function(terms, dname, crawl = 1, explore = FALSE) {
+    if (explore) {
+        key <- join(sort(terms), collapse = "|")
+
+        if (!(key %in% names(LINKS_LIST))) {
+            urls <- sprintf(
+                "https://en.wikipedia.org/w/index.php?search=%s",
+                gsub("\\s+", "%20", terms)
+            )
+
+            # first scrape links off page
+            htmls <- rmget(urls, dname)
+            links <- do.call(c, lapply(htmls, parse_links))
+
+            # then parse pages for biota
+            htmls <- rmget(links, dname)
+            biota <- lapply(htmls, parse)
+
+            # extract all headers as terms
+            new <- unlist(lapply(biota, "[[", "h1"))
+            terms <- union(terms, new)
+
+            LINKS_LIST[[key]] <- terms
+        }
+
+        terms <- LINKS_LIST[[key]]
+    }
+
     for (epoch in 1:crawl) {
         if (epoch != 1) {
             new <- do.call(c, lapply(PARSE_LIST[terms], function(lst) {
@@ -410,20 +444,22 @@ scrape_and_parse <- function(terms, dname, crawl = 1) {
         index <- (terms %in% names(PARSE_LIST))
         terms_sel <- terms[!index]
 
-        if (!identical(terms_sel, character(0))) {
-            urls <- sprintf(
-                "https://en.wikipedia.org/w/index.php?search=%s",
-                gsub("\\s+", "%20", terms_sel)
-            )
+        if (identical(terms_sel, character(0))) {
+            next
+        }
 
-            htmls <- rmget(urls, dname)
-            biota <- lapply(htmls, parse)
-            for (i in 1:length(terms_sel)) {
-                if (is.null(biota[[i]])) {
-                    next
-                }
-                PARSE_LIST[[terms_sel[i]]] <<- biota[[i]]
+        urls <- sprintf(
+            "https://en.wikipedia.org/w/index.php?search=%s",
+            gsub("\\s+", "%20", terms_sel)
+        )
+
+        htmls <- rmget(urls, dname)
+        biota <- lapply(htmls, parse)
+        for (i in 1:length(terms_sel)) {
+            if (is.null(biota[[i]])) {
+                next
             }
+            PARSE_LIST[[terms_sel[i]]] <<- biota[[i]]
         }
     }
 
@@ -556,7 +592,7 @@ form_edges <- function(snp, rooted) {
 
 form_graph <- function(
         terms, dname,
-        crawl = 1,
+        crawl = 1, explore = FALSE,
         simplify = TRUE, rooted = TRUE,
         layout = OPTIONS_LAYOUT,
         splines = OPTIONS_SPLINES,
@@ -569,7 +605,7 @@ form_graph <- function(
     overlap <- match.arg(overlap)
     rankdir <- match.arg(rankdir)
 
-    snp <- scrape_and_parse(terms, dname, crawl)
+    snp <- scrape_and_parse(terms, dname, crawl, explore)
     if (simplify) {
         snp <- simplify_network(snp, terms)
     }
@@ -622,16 +658,21 @@ html_list <- function(node, edges, lookup) {
 
     if (node %in% names(lookup)) {
         lst <- lookup[[node]]
-        common <- lst$th
-        img <- tag("img", attrs = c(src = lst$img, loading = "lazy"), cap = FALSE)
         href <- lst$url
-    }
+        common <- lst$th
 
-    div <- tag("div", tag("i", taxon))
-    if (img != "") {
         name <- join(tag("b", common), tag("i", taxon), sep = "<br/>")
-        a <- tag("a", img, attrs = c(href = href, target = "_blank"))
-        div <- tag("div", name, a, attrs = c(class = "parent", onclick = "", id = "blue"))
+
+        if (!is.na(lst$img)) {
+            img <- tag("img", attrs = c(src = lst$img, loading = "lazy"), cap = FALSE)
+            a <- tag("a", img, attrs = c(href = href, target = "_blank"))
+            div <- tag("div", name, a, attrs = c(class = "parent", onclick = "", id = "blue"))
+        } else {
+            a <- tag("a", name, attrs = c(href = href, target = "_blank"))
+            div <- tag("div", a, attrs = c(class = "parent", onclick = "", id = "blue"))
+        }
+    } else {
+        div <- tag("div", tag("i", taxon))
     }
 
     tag("li", div, kids)
@@ -735,6 +776,7 @@ ui <- fluidPage(
             ),
             tabPanel("Config",
                  br(), p("General Options", style = "text-align:center;font-weight:bold;"),
+                checkboxInput("explore", "Explore?", FALSE),
                 checkboxInput("simplify", "Simplify?", TRUE),
                 fixedRow(column(4, p("Recursive Search")), column(8,
                     sliderInput("crawl", NULL, 1, 5, 1, animate = FALSE)
@@ -772,12 +814,12 @@ server <- function(input, output) {
         }
 
         terms <- trimws(unlist(strsplit(input$text_in, "\n")))
-        terms <- unique(tolower(terms[terms != ""]))
+        terms <- unique(terms[terms != ""])
 
         DiagrammeR::grViz(form_graph(
             terms, dname,
             input$crawl,
-            input$simplify, input$rooted,
+            input$explore, input$simplify, input$rooted,
             input$layout, input$splines, input$overlap, input$rankdir
         ))
     })
@@ -789,9 +831,9 @@ server <- function(input, output) {
         }
 
         terms <- trimws(unlist(strsplit(input$text_in, "\n")))
-        terms <- unique(tolower(terms[terms != ""]))
+        terms <- unique(terms[terms != ""])
 
-        snp <- scrape_and_parse(terms, dname, crawl = input$crawl)
+        snp <- scrape_and_parse(terms, dname, crawl = input$crawl, explore = input$explore)
         if (input$simplify) {
             snp <- simplify_network(snp, terms)
         }
@@ -806,9 +848,9 @@ server <- function(input, output) {
         }
 
         terms <- trimws(unlist(strsplit(input$text_in, "\n")))
-        terms <- unique(tolower(terms[terms != ""]))
+        terms <- unique(terms[terms != ""])
 
-        snp <- scrape_and_parse(terms, dname, crawl = input$crawl)
+        snp <- scrape_and_parse(terms, dname, crawl = input$crawl, explore = input$explore)
         if (input$simplify) {
             snp <- simplify_network(snp, terms)
         }
@@ -823,9 +865,9 @@ server <- function(input, output) {
         }
 
         terms <- trimws(unlist(strsplit(input$text_in, "\n")))
-        terms <- unique(tolower(terms[terms != ""]))
+        terms <- unique(terms[terms != ""])
 
-        snp <- scrape_and_parse(terms, dname, crawl = input$crawl)
+        snp <- scrape_and_parse(terms, dname, crawl = input$crawl, explore = input$explore)
         if (input$simplify) {
             snp <- simplify_network(snp, terms)
         }
