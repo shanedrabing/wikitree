@@ -40,3 +40,4 @@ vignettes/*.pdf
 
 # Custom
 data/secret.txt
+private
