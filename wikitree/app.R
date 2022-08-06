@@ -774,7 +774,7 @@ ui <- fluidPage(
             tabPanel("Input",
                 textAreaInput("text_in", NULL, DEFAULT_INPUT, "100%", "60vh", resize = "vertical")
             ),
-            tabPanel("Config",
+            tabPanel("Settings",
                 br(), p("General Options", style = "text-align:center;font-weight:bold;"),
                 checkboxInput("simplify", "Simplify?", TRUE),
                 fixedRow(column(4, p("Recursive Search")), column(8,
@@ -799,8 +799,8 @@ ui <- fluidPage(
             )
         ), width = 2),
         column(tabsetPanel(type = "pills",
-            tabPanel("SVG", br(), DiagrammeR::grVizOutput("plot", "95%", "80vh")),
             tabPanel("HTML", br(), htmlOutput("html")),
+            tabPanel("SVG", br(), DiagrammeR::grVizOutput("plot", "95%", "80vh")),
             tabPanel("Text", br(), verbatimTextOutput("text")),
             tabPanel("Table", br(), tableOutput("table"))
         ), width = 10)
